@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Music Player</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        #playlist {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+        #playlist li {
+            padding: 10px;
+            background-color: #f9f9f9;
+            margin-bottom: 5px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border: 1px solid #ddd;
+        }
+        #playlist li:hover {
+            background-color: #eaeaea;
+        }
+        audio {
+            width: 100%;
+        }
+        .track-info {
+            flex-grow: 1;
+            font-weight: bold;
+            color: #333;
+        }
+        .delete-btn {
+            background-color: #ff4136;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+        .delete-btn:hover {
+            background-color: #d50000;
+        }
+        #nowPlaying {
+            text-align: center;
+            margin-top: 20px;
+        }
+        #nowPlayingTrack {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        input[type="file"] {
+            display: none;
+        }
+        .upload-btn {
+            background-color: #ac0a0a;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+        .upload-btn:hover {
+            background-color: #e10a0a;
+        }
+        .container {
+            background-image: linear-gradient(to bottom right, #007bff, #00cccc);
+        }
+        .upload-btn, .delete-btn {
+            font-family: 'Roboto', sans-serif;
+            font-size: 16px;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Music Player</h1>
+        <label for="fileInput" class="upload-btn">Choose File</label>
+        <form id="uploadForm" enctype="multipart/form-data" style="display: inline-block;">
+            <input type="file" id="fileInput" accept=".mp3">
+            <input type="button" value="Upload" onclick="uploadFile()" class="upload-btn">
+        </form>
+        <div id="nowPlaying">
+            <h2>Now Playing</h2>
+            <p id="nowPlayingTrack"></p>
+            <audio id="audioPlayer" controls></audio>
+        </div>
+        <div id="playlist">
+            <h2>Playlist</h2>
+            <ul id="playlistItems"></ul>
+        </div>
+    </div>
+
+    <script>
+        let audioPlayer = document.getElementById('audioPlayer');
+
+        function uploadFile() {
+            var fileInput = document.getElementById('fileInput');
+            var file = fileInput.files[0];
+            if (!file) {
+                return;
+            }
+
+            var formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                }
+                throw new Error('Error uploading file');
+            })
+            .then(data => {
+                // Reload playlist after successful upload
+                loadPlaylist();
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        function loadPlaylist() {
+            fetch('/playlist')
+            .then(response => response.json())
+            .then(playlist => {
+                var playlistItems = document.getElementById('playlistItems');
+                playlistItems.innerHTML = '';
+
+                playlist.forEach(track => {
+                    var li = document.createElement('li');
+                    var audio = document.createElement('audio');
+                    var source = document.createElement('source');
+                    source.src = track.path;
+                    source.type = 'audio/mpeg';
+                    audio.controls = false; // Remove default controls
+                    audio.className = 'audio-element'; // Add class for custom styling
+                    audio.appendChild(source);
+                    li.appendChild(audio);
+
+                    var trackInfo = document.createElement('div');
+                    trackInfo.className = 'track-info';
+                    trackInfo.textContent = track.name;
+                    li.appendChild(trackInfo);
+
+                    var deleteButton = document.createElement('button');
+                    deleteButton.textContent = 'Delete';
+                    deleteButton.className = 'delete-btn';
+                    deleteButton.addEventListener('click', function() {
+                        deleteAudio(track.path);
+                    });
+                    li.appendChild(deleteButton);
+
+                    li.addEventListener('click', function() {
+                        setNowPlaying(track.name, track.path);
+                    });
+                    playlistItems.appendChild(li);
+                });
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        function setNowPlaying(trackName, trackPath) {
+            var nowPlayingTrack = document.getElementById('nowPlayingTrack');
+            nowPlayingTrack.textContent = 'Now Playing: ' + trackName;
+            audioPlayer.src = trackPath;
+            audioPlayer.load();
+            audioPlayer.play();
+        }
+
+        function deleteAudio(trackPath) {
+            // Check if the currently playing track is the one being deleted
+            if (audioPlayer.src === trackPath) {
+                // Stop audio playback
+                audioPlayer.pause();
+                audioPlayer.currentTime = 0; // Reset playback to start
+                // Clear now playing information
+                var nowPlayingTrack = document.getElementById('nowPlayingTrack');
+                nowPlayingTrack.textContent = '';
+            }
+
+            fetch('/delete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ path: trackPath })
+            })
+            .then(response => {
+                if (response.ok) {
+                    // Reload playlist after successful delete
+                    loadPlaylist();
+                } else {
+                    throw new Error('Error deleting file');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        // Load playlist on page load
+        window.addEventListener('load', function() {
+            loadPlaylist();
+        });
+    </script>
+</body>
+</html>
